@@ -1,1 +1,2 @@
-app/bin/*
+client/bin/*
+client/data/ip.txt
