@@ -61,5 +61,5 @@ func main() {
 	router.GET("/helloworld", helloworld)
 	router.POST("/login", Login)
 	router.POST("/send-message", SendMessage)
-	router.Run("localhost:18000")
+	router.Run("0.0.0.0:18000")
 }
