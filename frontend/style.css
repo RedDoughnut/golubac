@@ -20,3 +20,12 @@ button {
     align-items: center;
     padding: 5%;
 }
+
+#contacts{
+    float:left;
+    width: 1000;
+}
+
+#main{
+    padding:5vh;
+}
