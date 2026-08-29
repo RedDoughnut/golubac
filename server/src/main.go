@@ -1,15 +1,16 @@
 package main
 
 import (
-	"fmt"
 	"net/http"
+	//"github.com/jackc/pgx/v5"
 	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgx/v5"
 )
 
-func login(c *gin.Context){
+func helloworld(c *gin.Context) {
 	c.IndentedJSON(http.StatusOK, "Hello World!")
 }
 func main() {
-	
+	router := gin.Default()
+	router.GET("/helloworld", helloworld)
+	router.Run("localhost:18000")
 }
