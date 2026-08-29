@@ -119,6 +119,9 @@ class ChatClient {
         nlohmann::json response_json = nlohmann::json::parse(response.text);
         refresh_token = response_json["refreshtoken"];
 
+        std::ofstream refresh_token_file_stream("../data/refresh-token.txt");
+        refresh_token_file_stream << refresh_token;
+
         return true;
     }
     /*
@@ -140,6 +143,9 @@ class ChatClient {
 
         nlohmann::json response_body = nlohmann::json::parse(response.text);
         refresh_token = response_body["refreshtoken"];
+
+        std::ofstream refresh_token_file_stream("../data/refresh-token.txt");
+        refresh_token_file_stream << refresh_token;
         return true;
     }
 
