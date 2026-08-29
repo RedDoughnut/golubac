@@ -71,9 +71,12 @@ class ChatClient {
      * Logs in as a user
      */
     void login() {
-        auto response = cpr::Get(
+        nlohmann::json body_json;
+        body_json["username"] = username;
+        auto response = cpr::Post(
             cpr::Url{ip + "/login"},
-            cpr::Parameters{{"name", username}}
+            cpr::Header{{"Content-Type", "application/json"}},
+            cpr::Body{body_json.dump()}
         );
         
         if (!checkResponse(response, "login")) {
@@ -109,9 +112,29 @@ int main() {
 
     ChatClient chat_client1("me", ip);
     chat_client1.sendMessage("nm", "hi");
+    std::string input;
+    std::string message;
+    std::string recipient;
     while(true){
-        std::this_thread::sleep_for(std::chrono::seconds(2));
-        chat_client1.checkIncomingMessages();        
+        std::cout << "type 'q' to quit, 'r' to recieve polled messages and 's' to send a message" << std::endl;
+        std::getline(std::cin, input);
+        switch (input[0]) {
+            case 'q': 
+                std::cout << "quitting" << std::endl;
+                return 0;
+
+            case 'r': 
+                chat_client1.checkIncomingMessages();
+                break;
+                
+            case 's': 
+                std::cout << "enter the recipient: " << std::flush;
+                std::getline(std::cin, recipient);
+                std::cout << "enter the message: " << std::endl;
+                std::getline(std::cin, message);
+                chat_client1.sendMessage(recipient, message);
+                break;
+        }
     }
     return 0;
 }
