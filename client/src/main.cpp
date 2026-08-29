@@ -94,7 +94,7 @@ class ChatClient {
         this->server_ip = server_ip;
     }
 
-    bool registerUser(const std::string& username, const std::string& email, const std::string& display_name, const std::string& password) {
+    bool registerUser(const std::string& username, const std::string& email, const std::string& display_name, const std::string& password) { // make username be alphanumeric and email text checking
         nlohmann::json register_json;
         register_json["email"] = email;
         register_json["username"] = username;
