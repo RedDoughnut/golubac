@@ -3,17 +3,17 @@ package main
 import (
 	//"net/http"
 	"context"
+	"errors"
 	"fmt"
 	"os"
-
 	"src/src/auth"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
 
 	//"github.com/golang-jwt/jwt/v5"
 	"github.com/joho/godotenv"
-	"golang.org/x/crypto/bcrypt"
 )
 
 type SendMessageRequest struct {
@@ -23,9 +23,10 @@ type SendMessageRequest struct {
 }
 type LoginRequest struct {
 	Username string `json:"username"`
+	Password string `json:"password"`
 }
 type Server struct {
-	DB pgx.Conn
+	DB *pgx.Conn
 }
 type RegisterRequest struct {
 	Email       string `json:"email"`
@@ -34,33 +35,56 @@ type RegisterRequest struct {
 	DisplayName string `json:"displayname"`
 }
 
-func HashPassword(password string) (string, error) {
-	hash, err := bcrypt.GenerateFromPassword(
-		[]byte(password),
-		bcrypt.DefaultCost,
-	)
-	if err != nil {
-		return "", err
-	}
-
-	return string(hash), nil
-}
-
-func Login(c *gin.Context) {
+func (s *Server) Login(c *gin.Context) {
 	var input LoginRequest
 
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(400, gin.H{"error": err.Error()})
 		return
 	}
-	if input.Username == "" {
-		c.JSON(401, gin.H{"error": "No username specified."})
+	var user struct {
+		id            int64
+		password_hash string
+		salt          string
+	}
+	err := s.DB.QueryRow(context.Background(), `SELECT id, password_hash, salt FROM users WHERE username = $1`, input.Username).Scan(&user.id, &user.password_hash, &user.salt)
+
+	if errors.Is(err, pgx.ErrNoRows) {
+		err := s.DB.QueryRow(context.Background(), `SELECT id, password_hash, salt FROM users WHERE email = $1`, input.Username).Scan(&user.id, &user.password_hash, &user.salt)
+		if err != nil {
+			c.JSON(400, gin.H{"error": err.Error()})
+			return
+		}
+	} else if err != nil {
+		c.JSON(400, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(200, gin.H{"token": "MGnajjacaSkola." + input.Username})
+	success, err := auth.VerifyPassword(input.Password, user.password_hash, user.salt)
+	if err != nil {
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+	if !success {
+		c.JSON(401, gin.H{"error": "Password incorrect"})
+		return
+	}
+	expiresAt := time.Now().AddDate(0, 0, 30) // set the expiry of refresh token to 30 days
+	token, err := auth.GenerateRefreshToken()
+	if err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+	hashed_token := auth.HashToken(token)
+	_, err = s.DB.Exec(context.Background(), "INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES ($1,$2,$3);", user.id, hashed_token, expiresAt)
+	if err != nil {
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(200, gin.H{"refreshtoken": token})
 }
 
+// TODO username only alphanumerical + _
 func (s *Server) Register(c *gin.Context) {
 	var input RegisterRequest
 
@@ -78,13 +102,26 @@ func (s *Server) Register(c *gin.Context) {
 		return
 	}
 	hashed_pass := auth.HashPassword(input.Password, salt)
-	_,err = s.DB.Exec(context.Background(), "INSERT INTO users (username, display_name, email, hashed_password, salt) VALUES ($1,$2,$3,$4,$5);", input.Username, input.DisplayName, input.Email, hashed_pass, salt)
+	var userID int64
+	err = s.DB.QueryRow(context.Background(), "INSERT INTO users (username, display_name, email, hashed_password, salt) VALUES ($1,$2,$3,$4,$5) RETURNING id;", input.Username, input.DisplayName, input.Email, hashed_pass, salt).Scan(&userID)
 	if err != nil {
 		c.JSON(400, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(200, gin.H{"refresh"})
+	expiresAt := time.Now().AddDate(0, 0, 30) // set the expiry of refresh token to 30 days
+	token, err := auth.GenerateRefreshToken()
+	if err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+	hashed_token := auth.HashToken(token)
+	_, err = s.DB.Exec(context.Background(), "INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES ($1,$2,$3);", userID, hashed_token, expiresAt)
+	if err != nil {
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(200, gin.H{"refreshtoken": token})
 }
 func SendTextMessage(c *gin.Context) {
 	var data SendMessageRequest
@@ -118,10 +155,12 @@ func main() {
 		printError("Error connecting to DB: %s", err.Error())
 		os.Exit(1)
 	}
+	var srv Server
+	srv.DB = conn
 	defer conn.Close(context.Background())
 
 	router := gin.Default()
-	router.POST("/login", Login)
-	router.POST("/send-text-message", SendMessage)
+	router.POST("/login", srv.Login)
+	router.POST("/register", srv.Register)
 	router.Run("0.0.0.0:18000")
 }
