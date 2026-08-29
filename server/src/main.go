@@ -103,7 +103,7 @@ func (s *Server) Register(c *gin.Context) {
 	}
 	hashed_pass := auth.HashPassword(input.Password, salt)
 	var userID int64
-	err = s.DB.QueryRow(context.Background(), "INSERT INTO users (username, display_name, email, hashed_password, salt) VALUES ($1,$2,$3,$4,$5) RETURNING id;", input.Username, input.DisplayName, input.Email, hashed_pass, salt).Scan(&userID)
+	err = s.DB.QueryRow(context.Background(), "INSERT INTO users (username, display_name, email, password_hash, salt) VALUES ($1,$2,$3,$4,$5) RETURNING id;", input.Username, input.DisplayName, input.Email, hashed_pass, salt).Scan(&userID)
 	if err != nil {
 		c.JSON(400, gin.H{"error": err.Error()})
 		return
@@ -145,6 +145,7 @@ func loadEnv() {
 	err := godotenv.Load()
 	if err != nil {
 		printError("Error loading .env file")
+		os.Exit(1)
 	}
 }
 func main() {
