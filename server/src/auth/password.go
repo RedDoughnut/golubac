@@ -12,22 +12,24 @@ import (
 )
 
 const (
-	saltLength = 16
-
+	saltLength   = 16
 	argonTime    = 1
 	argonMemory  = 64 * 1024
 	argonThreads = 4
 	argonKeyLen  = 32
 )
 
-func GenerateSalt() ([]byte, error) {
+func GenerateSalt() (string, error) {
 	salt := make([]byte, saltLength)
+
 	_, err := rand.Read(salt)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
-	return salt, nil
+
+	return base64.RawStdEncoding.EncodeToString(salt), nil
 }
+
 func GenerateRefreshToken() (string, error) {
 	b := make([]byte, 32)
 
@@ -38,33 +40,38 @@ func GenerateRefreshToken() (string, error) {
 
 	return base64.RawURLEncoding.EncodeToString(b), nil
 }
+
 func HashToken(token string) string {
 	hash := sha256.Sum256([]byte(token))
 	return hex.EncodeToString(hash[:])
 }
 
-func HashPassword(password string, salt []byte) []byte {
-	return argon2.IDKey(
+func HashPassword(password string, salt string) (string, error) {
+	saltBytes, err := base64.RawStdEncoding.DecodeString(salt)
+	if err != nil {
+		return "", errors.New("invalid salt")
+	}
+
+	hash := argon2.IDKey(
 		[]byte(password),
-		salt,
+		saltBytes,
 		argonTime,
 		argonMemory,
 		argonThreads,
 		argonKeyLen,
 	)
+
+	return base64.RawStdEncoding.EncodeToString(hash), nil
 }
-func VerifyPassword(password string, storedHash string, storedSalt string) (bool, error) {
-	salt, err := base64.RawStdEncoding.DecodeString(storedSalt)
+
+func VerifyPassword(password, storedHash, storedSalt string) (bool, error) {
+	newHash, err := HashPassword(password, storedSalt)
 	if err != nil {
-		return false, errors.New("invalid stored salt")
+		return false, err
 	}
 
-	hash, err := base64.RawStdEncoding.DecodeString(storedHash)
-	if err != nil {
-		return false, errors.New("invalid stored hash")
-	}
-
-	newHash := HashPassword(password, salt)
-
-	return subtle.ConstantTimeCompare(hash, newHash) == 1, nil
+	return subtle.ConstantTimeCompare(
+		[]byte(storedHash),
+		[]byte(newHash),
+	) == 1, nil
 }

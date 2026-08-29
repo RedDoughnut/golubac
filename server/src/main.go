@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"src/src/auth"
+	"src/src/ratelimiter"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -26,7 +27,9 @@ type LoginRequest struct {
 	Password string `json:"password"`
 }
 type Server struct {
-	DB *pgx.Conn
+	DB              *pgx.Conn
+	RegisterLimiter *ratelimiter.RateLimiter
+	LoginLimiter    *ratelimiter.RateLimiter
 }
 type RegisterRequest struct {
 	Email       string `json:"email"`
@@ -36,6 +39,10 @@ type RegisterRequest struct {
 }
 
 func (s *Server) Login(c *gin.Context) {
+	if !s.LoginLimiter.Allow(c.ClientIP()) {
+		c.JSON(429, gin.H{"error": "Too many login attempts!"})
+		return
+	}
 	var input LoginRequest
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -51,22 +58,21 @@ func (s *Server) Login(c *gin.Context) {
 
 	if errors.Is(err, pgx.ErrNoRows) {
 		err := s.DB.QueryRow(context.Background(), `SELECT id, password_hash, salt FROM users WHERE email = $1`, input.Username).Scan(&user.id, &user.password_hash, &user.salt)
-		if err != nil {
-			c.JSON(400, gin.H{"error": err.Error()})
+		if errors.Is(err, pgx.ErrNoRows) {
+			c.JSON(401, gin.H{"error": "Invalid username/email or password"})
+			return
+		} else if err != nil {
+			c.JSON(500, gin.H{"error": err.Error()})
 			return
 		}
 	} else if err != nil {
-		c.JSON(400, gin.H{"error": err.Error()})
+		c.JSON(500, gin.H{"error": err.Error()})
 		return
 	}
 
 	success, err := auth.VerifyPassword(input.Password, user.password_hash, user.salt)
-	if err != nil {
-		c.JSON(400, gin.H{"error": err.Error()})
-		return
-	}
-	if !success {
-		c.JSON(401, gin.H{"error": "Password incorrect"})
+	if err != nil || !success {
+		c.JSON(401, gin.H{"error": "Invalid username/email or password"})
 		return
 	}
 	expiresAt := time.Now().AddDate(0, 0, 30) // set the expiry of refresh token to 30 days
@@ -86,6 +92,10 @@ func (s *Server) Login(c *gin.Context) {
 
 // TODO username only alphanumerical + _
 func (s *Server) Register(c *gin.Context) {
+	if !s.RegisterLimiter.Allow(c.ClientIP()) {
+		c.JSON(429, gin.H{"error": "Too many registrations!"})
+		return
+	}
 	var input RegisterRequest
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -101,9 +111,13 @@ func (s *Server) Register(c *gin.Context) {
 		c.JSON(500, gin.H{"error": err.Error()})
 		return
 	}
-	hashed_pass := auth.HashPassword(input.Password, salt)
+	password_hash, err := auth.HashPassword(input.Password, salt)
+	if err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
 	var userID int64
-	err = s.DB.QueryRow(context.Background(), "INSERT INTO users (username, display_name, email, password_hash, salt) VALUES ($1,$2,$3,$4,$5) RETURNING id;", input.Username, input.DisplayName, input.Email, hashed_pass, salt).Scan(&userID)
+	err = s.DB.QueryRow(context.Background(), "INSERT INTO users (username, display_name, email, password_hash, salt) VALUES ($1,$2,$3,$4,$5) RETURNING id;", input.Username, input.DisplayName, input.Email, password_hash, salt).Scan(&userID)
 	if err != nil {
 		c.JSON(400, gin.H{"error": err.Error()})
 		return
@@ -156,10 +170,12 @@ func main() {
 		printError("Error connecting to DB: %s", err.Error())
 		os.Exit(1)
 	}
-	var srv Server
-	srv.DB = conn
 	defer conn.Close(context.Background())
 
+	var srv Server
+	srv.DB = conn
+	srv.RegisterLimiter = ratelimiter.New(10, 24*time.Hour) // set rate limit for register to 10/day
+	srv.LoginLimiter = ratelimiter.New(5, time.Hour)        // set rate limit for login 5/h
 	router := gin.Default()
 	router.POST("/login", srv.Login)
 	router.POST("/register", srv.Register)
