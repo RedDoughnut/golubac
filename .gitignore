@@ -3,4 +3,4 @@ client/data/ip.txt
 
 server/.env
 server/.env.*
-server/bin/
+server/bin/*
