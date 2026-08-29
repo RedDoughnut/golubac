@@ -150,6 +150,8 @@ class ChatClient {
     }
 
     bool refreshSession() {
+        std::ifstream refresh_token_file_stream("../data/refresh-token.txt");
+        
         nlohmann::json refresh_session_json;
         refresh_session_json["refreshtoken"] = refresh_token;
         auto response = cpr::Post(
@@ -292,12 +294,14 @@ class ChatClient {
 
 int main() {
     std::string server_ip;
-    std::ifstream ip_text_stream("../data/server_ip.txt");
+    std::ifstream ip_text_stream("../data/ip.txt");
     ip_text_stream >> server_ip;
 
     ChatClient chat_client1(server_ip);
     // register/login -> sendMessage -> checkIncomingMessages -> refreshToken
-
+    chat_client1.registerUser("nemanja", "nemanja@mail.com", "Nemanja", "nemanjn_password123123🔮 🦦 🛸 🌮 🎨#");
+    chat_client1.refreshSession();
+    std::cout << chat_client1.session_token;
     std::string input;
     std::string message;
     std::string recipient;
