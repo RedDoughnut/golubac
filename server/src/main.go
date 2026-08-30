@@ -3,6 +3,7 @@ package main
 import (
 	//"net/http"
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"os"
@@ -28,6 +29,7 @@ type LoginRequest struct {
 }
 type Server struct {
 	DB              *pgx.Conn
+	JWTSecret       string
 	RegisterLimiter *ratelimiter.RateLimiter
 	LoginLimiter    *ratelimiter.RateLimiter
 }
@@ -36,6 +38,9 @@ type RegisterRequest struct {
 	Username    string `json:"username"`
 	Password    string `json:"password"`
 	DisplayName string `json:"displayname"`
+}
+type RefreshRequest struct {
+	RefreshToken string `json:"refreshtoken"`
 }
 
 func (s *Server) Login(c *gin.Context) {
@@ -137,18 +142,36 @@ func (s *Server) Register(c *gin.Context) {
 	}
 	c.JSON(200, gin.H{"refreshtoken": token})
 }
-func SendTextMessage(c *gin.Context) {
-	var data SendMessageRequest
-	if err := c.ShouldBindJSON(&data); err != nil {
+
+// TODO dodati limiter
+func (s *Server) Refresh(c *gin.Context) {
+	var input RefreshRequest
+	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(400, gin.H{"error": err.Error()})
 		return
 	}
-	if data.Token == "" {
-		c.JSON(401, gin.H{"error": "No token specified."})
+	hashed_token := auth.HashToken(input.RefreshToken)
+	var user struct {
+		id         int64
+		expires_at time.Time
+		revoked_at sql.NullTime
+	}
+	err := s.DB.QueryRow(context.Background(), "SELECT user_id, expires_at, revoked_at FROM refresh_tokens WHERE token_hash = $1", hashed_token).Scan(&user)
+	if err != nil {
+		c.JSON(400, gin.H{"error": err.Error()})
 		return
 	}
-	c.Status(200)
-	fmt.Printf("Got a successful request! token: %s\nrecepient: %s\nmessage: %s\n", data.Token, data.Recipient, data.Message)
+	// check if token is expired or revoked
+	if user.expires_at.Before(time.Now()) || user.revoked_at.Valid {
+		c.JSON(401, gin.H{"error": "Refresh token expired"})
+		return
+	}
+	session_token, err := auth.GenerateJWT(user.id, s.JWTSecret)
+	if err != nil {
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(200, gin.H{"sessiontoken": session_token})
 }
 func printError(format string, a ...interface{}) {
 	fmt.Printf("\033[1;31m"+format+"\033[0m\n", a...)
@@ -162,9 +185,18 @@ func loadEnv() {
 		os.Exit(1)
 	}
 }
+
+func (srv *Server) rateLimiterCleanup() {
+	ticker := time.NewTicker(24 * time.Hour)
+	for range ticker.C {
+		srv.LoginLimiter.Cleanup()
+		srv.RegisterLimiter.Cleanup()
+	}
+}
 func main() {
 	loadEnv()
 	PostgresURL := os.Getenv("POSTGRES_URL")
+	JWTSecret := os.Getenv("JWT_SECRET")
 	conn, err := pgx.Connect(context.Background(), PostgresURL)
 	if err != nil {
 		printError("Error connecting to DB: %s", err.Error())
@@ -174,10 +206,13 @@ func main() {
 
 	var srv Server
 	srv.DB = conn
+	srv.JWTSecret = JWTSecret
 	srv.RegisterLimiter = ratelimiter.New(10, 24*time.Hour) // set rate limit for register to 10/day
 	srv.LoginLimiter = ratelimiter.New(5, time.Hour)        // set rate limit for login 5/h
+	go srv.rateLimiterCleanup()
 	router := gin.Default()
 	router.POST("/login", srv.Login)
 	router.POST("/register", srv.Register)
+	router.POST("/refresh", srv.Refresh)
 	router.Run("0.0.0.0:18000")
 }
