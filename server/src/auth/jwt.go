@@ -23,7 +23,7 @@ func GenerateJWT(userID int64, JWTSecret string) (string, error) {
 		},
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS512, claims)
-	tokenString, err := token.SignedString(JWTSecret)
+	tokenString, err := token.SignedString([]byte(JWTSecret))
 	if err != nil {
 		return "", fmt.Errorf("failed to sign token: %s", err.Error())
 	}
