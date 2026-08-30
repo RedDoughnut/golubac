@@ -215,5 +215,5 @@ func main() {
 	router.POST("/login", srv.Login)
 	router.POST("/register", srv.Register)
 	router.POST("/refresh-session-token", srv.Refresh)
-	router.Run("0.0.0.0:" + Port)
+	router.Run("localhost:" + Port)
 }
