@@ -197,6 +197,7 @@ func main() {
 	loadEnv()
 	PostgresURL := os.Getenv("POSTGRES_URL")
 	JWTSecret := os.Getenv("JWT_SECRET")
+	Port := os.Getenv("PORT")
 	conn, err := pgx.Connect(context.Background(), PostgresURL)
 	if err != nil {
 		printError("Error connecting to DB: %s", err.Error())
@@ -214,5 +215,5 @@ func main() {
 	router.POST("/login", srv.Login)
 	router.POST("/register", srv.Register)
 	router.POST("/refresh-session-token", srv.Refresh)
-	router.Run("0.0.0.0:18000")
+	router.Run("0.0.0.0:" + Port)
 }
