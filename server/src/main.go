@@ -156,7 +156,7 @@ func (s *Server) Refresh(c *gin.Context) {
 		expires_at time.Time
 		revoked_at sql.NullTime
 	}
-	err := s.DB.QueryRow(context.Background(), "SELECT user_id, expires_at, revoked_at FROM refresh_tokens WHERE token_hash = $1", hashed_token).Scan(&user)
+	err := s.DB.QueryRow(context.Background(), "SELECT user_id, expires_at, revoked_at FROM refresh_tokens WHERE token_hash = $1", hashed_token).Scan(&user.id, &user.expires_at, &user.revoked_at)
 	if err != nil {
 		c.JSON(400, gin.H{"error": err.Error()})
 		return
@@ -213,6 +213,6 @@ func main() {
 	router := gin.Default()
 	router.POST("/login", srv.Login)
 	router.POST("/register", srv.Register)
-	router.POST("/refresh", srv.Refresh)
+	router.POST("/refresh-session-token", srv.Refresh)
 	router.Run("0.0.0.0:18000")
 }
