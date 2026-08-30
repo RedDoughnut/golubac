@@ -29,6 +29,7 @@ func GenerateJWT(userID int64, JWTSecret string) (string, error) {
 	}
 	return tokenString, nil
 }
+
 /*
  * Verifies JWT access/session token
  * return true if its valid and false if it isnt
@@ -49,7 +50,7 @@ func VerifyJWT(JWTToken string, JWTSecret string) (bool, int) {
 		return false, 0
 	}
 	claims, ok := parsedToken.Claims.(*UserClaims)
-	if !ok || claims.ExpiresAt == nil{
+	if !ok || claims.ExpiresAt == nil {
 		return false, 0
 	}
 	return claims.ExpiresAt.After(time.Now()), 1
