@@ -6,15 +6,16 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"src/src/auth"
 	"src/src/ratelimiter"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 	"github.com/jackc/pgx/v5"
 
-	//"github.com/golang-jwt/jwt/v5"
 	"github.com/joho/godotenv"
 )
 
@@ -30,6 +31,8 @@ type LoginRequest struct {
 type Server struct {
 	DB              *pgx.Conn
 	JWTSecret       string
+	WSHub           *Hub
+	Upgrader        *websocket.Upgrader
 	RegisterLimiter *ratelimiter.RateLimiter
 	LoginLimiter    *ratelimiter.RateLimiter
 }
@@ -43,6 +46,91 @@ type RefreshRequest struct {
 	RefreshToken string `json:"refreshtoken"`
 }
 
+// Hub -> WritePump
+type OutgoingMessage struct {
+	Type string `json:"type"`
+	Text string `json:"text"`
+}
+
+// Websocket -> ReadPump
+type IncomingMessage struct {
+	Type string `json:"type"`
+	Text string `json:"text"`
+	To   int64  `json:"to"`
+}
+
+// ReadPump -> Hub
+type HubMessage struct {
+	Text string
+	To   int64
+}
+type Client struct {
+	UserID int64
+	Conn   *websocket.Conn
+
+	Send chan OutgoingMessage
+}
+
+type Hub struct {
+	clients map[int64]map[*Client]bool
+
+	register   chan *Client
+	unregister chan *Client
+	send       chan *HubMessage
+}
+
+func (h *Hub) Run() {
+	for {
+		select {
+		case client := <-h.register:
+			if h.clients[client.UserID] == nil {
+				h.clients[client.UserID] = make(map[*Client]bool)
+			}
+			h.clients[client.UserID][client] = true
+		case client := <-h.unregister:
+			delete(h.clients[client.UserID], client)
+			if len(h.clients[client.UserID]) == 0 {
+				delete(h.clients, client.UserID)
+			}
+			close(client.Send)
+		case broadcastMessage := <-h.send:
+			for client, _ := range h.clients[broadcastMessage.To] {
+				client.Send <- OutgoingMessage{
+					Text: broadcastMessage.Text,
+					Type: "message",
+				}
+			}
+		}
+	}
+}
+
+func (c *Client) WritePump() {
+	for message := range c.Send {
+		if err := c.Conn.WriteJSON(message); err != nil {
+			return
+		}
+	}
+}
+
+// TODO: Read username from websocket instead of userID
+// TODO: Save messages to Postgres
+func (c *Client) ReadPump(h *Hub) {
+	defer func() {
+		c.Conn.Close()
+		h.unregister <- c
+	}()
+
+	for {
+		var message IncomingMessage
+		if err := c.Conn.ReadJSON(&message); err != nil {
+			return
+		}
+		h.send <- &HubMessage{
+			Text: message.Text,
+			To:   message.To,
+		}
+	}
+}
 func (s *Server) Login(c *gin.Context) {
 	if !s.LoginLimiter.Allow(c.ClientIP()) {
 		c.JSON(429, gin.H{"error": "Too many login attempts!"})
@@ -193,6 +281,36 @@ func (srv *Server) rateLimiterCleanup() {
 		srv.RegisterLimiter.Cleanup()
 	}
 }
+func (s *Server) HandleWebSocket(c *gin.Context) {
+	token := c.GetHeader("Authorization")
+
+	valid, userID, errType := auth.VerifyJWT(token, s.JWTSecret)
+	if !valid {
+		// JWT expired
+		if errType == 1 {
+			c.JSON(401, gin.H{"error": "Session token expired"})
+		} else {
+			c.JSON(400, gin.H{"error": "Invalid session token."})
+		}
+		return
+	}
+	conn, err := s.Upgrader.Upgrade(c.Writer, c.Request, nil)
+	if err != nil {
+		return
+	}
+
+	client := &Client{
+		UserID: userID,
+		Conn:   conn,
+		Send:   make(chan OutgoingMessage, 256),
+	}
+
+	s.WSHub.register <- client
+
+	go client.ReadPump(s.WSHub)
+	go client.WritePump()
+}
+
 func main() {
 	loadEnv()
 	PostgresURL := os.Getenv("POSTGRES_URL")
@@ -211,9 +329,27 @@ func main() {
 	srv.RegisterLimiter = ratelimiter.New(10, 24*time.Hour) // set rate limit for register to 10/day
 	srv.LoginLimiter = ratelimiter.New(5, time.Hour)        // set rate limit for login 5/h
 	go srv.rateLimiterCleanup()
+	// WEB SOCKET
+	WSHub := Hub{
+		clients:    make(map[int64]map[*Client]bool),
+		register:   make(chan *Client, 256),
+		unregister: make(chan *Client, 256),
+		send:       make(chan *HubMessage, 256),
+	}
+	srv.WSHub = &WSHub
+	var upgrader = websocket.Upgrader{
+		CheckOrigin: func(r *http.Request) bool {
+			return true
+		},
+	}
+	srv.Upgrader = &upgrader
+
+	go srv.WSHub.Run()
+
 	router := gin.Default()
 	router.POST("/login", srv.Login)
 	router.POST("/register", srv.Register)
 	router.POST("/refresh-session-token", srv.Refresh)
+	router.GET("/ws", srv.HandleWebSocket)
 	router.Run("localhost:" + Port)
 }
