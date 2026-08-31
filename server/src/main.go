@@ -296,6 +296,7 @@ func (s *Server) HandleWebSocket(c *gin.Context) {
 	}
 	conn, err := s.Upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
 		return
 	}
 
