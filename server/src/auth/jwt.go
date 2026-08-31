@@ -35,7 +35,7 @@ func GenerateJWT(userID int64, JWTSecret string) (string, error) {
  * return true if its valid and false if it isnt
  * the number it returns is 1 if the JWT is expired and 0 otherwise
  */
-func VerifyJWT(JWTToken string, JWTSecret string) (bool, int) {
+func VerifyJWT(JWTToken string, JWTSecret string) (bool, int64, int) {
 	parsedToken, err := jwt.ParseWithClaims(
 		JWTToken,
 		&UserClaims{},
@@ -47,11 +47,11 @@ func VerifyJWT(JWTToken string, JWTSecret string) (bool, int) {
 		},
 	)
 	if err != nil || parsedToken == nil || !parsedToken.Valid {
-		return false, 0
+		return false, -1, 0
 	}
 	claims, ok := parsedToken.Claims.(*UserClaims)
 	if !ok || claims.ExpiresAt == nil {
-		return false, 0
+		return false, -1, 0
 	}
-	return claims.ExpiresAt.After(time.Now()), 1
+	return claims.ExpiresAt.After(time.Now()), claims.UserID, 1
 }
