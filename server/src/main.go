@@ -8,6 +8,7 @@ import (
 	"os"
 	"src/src/auth"
 	"src/src/ratelimiter"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -163,7 +164,7 @@ func (c *Client) ReadPump(h *Hub, s *Server) {
 		}
 		var uid int64
 		err := s.DB.QueryRow(context.Background(), `SELECT id FROM users WHERE username = $1`, message.To).Scan(&uid)
-		if err!=nil {
+		if err != nil {
 			return
 		}
 		c.Conn.SetReadDeadline(time.Now().Add(60 * time.Second))
@@ -328,7 +329,7 @@ func (srv *Server) rateLimiterCleanup() {
 	}
 }
 func (s *Server) HandleWebSocket(c *gin.Context) {
-	token := c.GetHeader("Authorization")
+	token := strings.TrimPrefix(c.GetHeader("Authorization"), "Bearer ")
 
 	valid, userID, errType := auth.VerifyJWT(token, s.JWTSecret)
 	if !valid {
