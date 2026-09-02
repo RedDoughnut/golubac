@@ -164,8 +164,11 @@ func (c *Client) ReadPump(h *Hub, s *Server) {
 		}
 		var uid int64
 		err := s.DB.QueryRow(context.Background(), `SELECT id FROM users WHERE username = $1`, message.To).Scan(&uid)
+		if c != nil {
+			fmt.Print("Got a ws incoming message! Err: " + err.Error() + "\n" + message.Text + "\n" + message.To + "\n")
+		}
 		if err != nil {
-			return
+			continue
 		}
 		c.Conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 		h.send <- &HubMessage{
@@ -330,7 +333,7 @@ func (srv *Server) rateLimiterCleanup() {
 }
 func (s *Server) HandleWebSocket(c *gin.Context) {
 	token := strings.TrimPrefix(c.GetHeader("Authorization"), "Bearer ")
-
+	fmt.Println(string(token))
 	valid, userID, errType := auth.VerifyJWT(token, s.JWTSecret)
 	if !valid {
 		// JWT expired
