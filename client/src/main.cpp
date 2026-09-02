@@ -102,11 +102,13 @@ class ChatClient {
     }
 
     ~ChatClient() {
-        // todo: add websocket disconnect
+        web_socket.stop();
     }
 
     bool connectWebSocket() {
         web_socket.setUrl("wss://" + server_ip + "/ws");
+        web_socket.setPingInterval(20);
+        
         ix::WebSocketHttpHeaders headers;
         headers["Authorization"] = "Bearer " + session_token;
         web_socket.setExtraHeaders(headers);
@@ -127,7 +129,8 @@ class ChatClient {
                 std::cerr << "websocket error: " << msg->errorInfo.reason << std::endl;
             }
             else if (msg->type == ix::WebSocketMessageType::Close) {
-                std::cout << "websocket closed" << std::endl;
+                std::cout << "websocket closed. Code: " << msg->closeInfo.code 
+                              << ", Reason: " << msg->closeInfo.reason << std::endl;
             }
         });
     
@@ -221,7 +224,6 @@ class ChatClient {
 
         nlohmann::json response_json = nlohmann::json::parse(response.text);
         session_token = response_json["sessiontoken"];
-        if(!connectWebSocket()) std::cout << "connecting websocket failed" << std::endl;
         return true;
     }
 
@@ -229,37 +231,18 @@ class ChatClient {
      * Sends a text message *
      * *should not be used in favour of sendMessage()*
      */
-    bool sendTextMessage(const std::string& recipient, const std::string& message) { // TODO: add message class that can hold an image or other things
+    bool sendTextMessage(const std::string& recipient, const std::u8string& message) { // TODO: add message class that can hold an image or other things
+        std::string text_utf8(reinterpret_cast<const char*>(message.data()), message.size());
+        
         nlohmann::json j;
-        j["sessiontoken"] = session_token;
         j["recipient"] = recipient;
-        j["message"] = message;
-
-        cpr::Body body{j.dump()};
-
-        auto response = cpr::Post(
-            cpr::Url{server_ip + "/send-text-message"},
-            cpr::Header{{"Content-Type", "application/json"}},
-            body
-        );
-        if (response.error.code != cpr::ErrorCode::OK) {
-            std::cerr << "sending message" << " failed (connection error): " << response.error.message << "\n";
+        j["message"] = text_utf8;
+        ix::WebSocketSendInfo info = web_socket.send(j.dump());
+        
+        if (!info.success) {
+            std::cerr << "Failed to send WebSocket message" << std::endl;
             return false;
         }
-        if(responseStatusCodeType(response) != HTTPStatus::SUCCESS) {
-            try {
-                nlohmann::json response_json = nlohmann::json::parse(response.text);
-                if (response_json.contains("error") && response_json["error"] == "invalid_token" && response.status_code == 401) {
-                    refreshSession();
-                    std::cerr << "session token refreshed, message not sent" << std::endl;
-                    return false;
-                }
-            } catch (const nlohmann::json::parse_error& e) {
-                std::cerr << "send-message failed (HTTP " << response.status_code << "): " << response.text << std::endl;
-            }
-            return false;
-        }
-
 
         return true;
     }
@@ -336,6 +319,11 @@ class ChatClient {
 
 };
 
+std::u8string getu8line() {
+    std::string temp;
+    std::getline(std::cin, temp);
+    return std::u8string(reinterpret_cast<const char8_t*>(temp.data()), temp.size());
+}
 
 int main() {
     std::string server_ip;
@@ -347,9 +335,11 @@ int main() {
     // chat_client1.registerUser("nemanja", "nemanja@mail.com", "Nemanja", "nemanjn_password123123🔮 🦦 🛸 🌮 🎨#");
     chat_client1.login("nemanja", "nemanjn_password123123🔮 🦦 🛸 🌮 🎨#");
     chat_client1.refreshSession();
+    chat_client1.connectWebSocket();
+    
     std::cout << chat_client1.session_token;
     std::string input;
-    std::string message;
+    std::u8string message;
     std::string recipient;
     while(true)  {
         std::cout << "type 'q' to quit, 'r' to recieve polled messages and 's' to send a message" << std::endl;
@@ -358,16 +348,11 @@ int main() {
             case 'q':
                 std::cout << "quitting" << std::endl;
                 return 0;
-
-            case 'r':
-                chat_client1.checkIncomingMessages();
-                break;
-
             case 's':
                 std::cout << "enter the recipient: " << std::flush;
                 std::getline(std::cin, recipient);
                 std::cout << "enter the message: " << std::endl;
-                std::getline(std::cin, message);
+                message = getu8line();
                 chat_client1.sendTextMessage(recipient, message);
                 break;
         }
