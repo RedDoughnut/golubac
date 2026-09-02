@@ -1,12 +1,10 @@
 package main
 
 import (
-	//"net/http"
 	"context"
 	"database/sql"
 	"errors"
 	"fmt"
-	"net/http"
 	"os"
 	"src/src/auth"
 	"src/src/ratelimiter"
@@ -56,13 +54,14 @@ type OutgoingMessage struct {
 type IncomingMessage struct {
 	Type string `json:"type"`
 	Text string `json:"text"`
-	To   int64  `json:"to"`
+	To   string `json:"to"`
 }
 
 // ReadPump -> Hub
 type HubMessage struct {
 	Text string
 	To   int64
+	From int64
 }
 type Client struct {
 	UserID int64
@@ -79,6 +78,9 @@ type Hub struct {
 	send       chan *HubMessage
 }
 
+/*
+ * App -> Websocket -> ReadPump -> Hub -> WritePump -> WebSocket -> App
+ */
 func (h *Hub) Run() {
 	for {
 		select {
@@ -88,11 +90,15 @@ func (h *Hub) Run() {
 			}
 			h.clients[client.UserID][client] = true
 		case client := <-h.unregister:
-			delete(h.clients[client.UserID], client)
-			if len(h.clients[client.UserID]) == 0 {
-				delete(h.clients, client.UserID)
+			if userClients, ok := h.clients[client.UserID]; ok {
+				if _, exists := userClients[client]; exists {
+					delete(userClients, client)
+					close(client.Send)
+					if len(userClients) == 0 {
+						delete(h.clients, client.UserID)
+					}
+				}
 			}
-			close(client.Send)
 		case broadcastMessage := <-h.send:
 			for client, _ := range h.clients[broadcastMessage.To] {
 				client.Send <- OutgoingMessage{
@@ -104,30 +110,67 @@ func (h *Hub) Run() {
 	}
 }
 
-func (c *Client) WritePump() {
-	for message := range c.Send {
-		if err := c.Conn.WriteJSON(message); err != nil {
-			return
+func (c *Client) WritePump(h *Hub) {
+	ticker := time.NewTicker(time.Second * 30)
+	defer func() {
+		ticker.Stop()
+		c.Conn.Close()
+		h.unregister <- c
+	}()
+	c.Conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+	c.Conn.SetPongHandler(func(string) error {
+		c.Conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+		return nil
+	})
+	for {
+		select {
+		case message, ok := <-c.Send:
+			c.Conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+			if !ok {
+				c.Conn.WriteMessage(websocket.CloseMessage, []byte{})
+				return
+			}
+			if err := c.Conn.WriteJSON(message); err != nil {
+				return
+			}
+		case <-ticker.C:
+			c.Conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+			if err := c.Conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+				return
+			}
 		}
 	}
 }
 
 // TODO: Read username from websocket instead of userID
 // TODO: Save messages to Postgres
-func (c *Client) ReadPump(h *Hub) {
+func (c *Client) ReadPump(h *Hub, s *Server) {
 	defer func() {
 		c.Conn.Close()
 		h.unregister <- c
 	}()
-
+	c.Conn.SetReadLimit(512 * 1024)
+	c.Conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+	c.Conn.SetPongHandler(func(string) error {
+		c.Conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+		return nil
+	})
 	for {
+
 		var message IncomingMessage
 		if err := c.Conn.ReadJSON(&message); err != nil {
 			return
 		}
+		var uid int64
+		err := s.DB.QueryRow(context.Background(), `SELECT id FROM users WHERE username = $1`, message.To).Scan(&uid)
+		if err!=nil {
+			return
+		}
+		c.Conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 		h.send <- &HubMessage{
 			Text: message.Text,
-			To:   message.To,
+			To:   uid,
+			From: c.UserID,
 		}
 	}
 }
@@ -183,12 +226,7 @@ func (s *Server) Login(c *gin.Context) {
 	c.JSON(200, gin.H{"refreshtoken": token})
 }
 
-// TODO username only alphanumerical + _
 func (s *Server) Register(c *gin.Context) {
-	if !s.RegisterLimiter.Allow(c.ClientIP()) {
-		c.JSON(429, gin.H{"error": "Too many registrations!"})
-		return
-	}
 	var input RegisterRequest
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -197,6 +235,10 @@ func (s *Server) Register(c *gin.Context) {
 	}
 	if input.Email == "" || input.DisplayName == "" || input.Username == "" || input.Password == "" {
 		c.JSON(400, gin.H{"error": "Missing fields."})
+		return
+	}
+	if !auth.ValidUsername(input.Username) {
+		c.JSON(400, gin.H{"error": "Invalid username."})
 		return
 	}
 	salt, err := auth.GenerateSalt()
@@ -226,6 +268,10 @@ func (s *Server) Register(c *gin.Context) {
 	_, err = s.DB.Exec(context.Background(), "INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES ($1,$2,$3);", userID, hashed_token, expiresAt)
 	if err != nil {
 		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+	if !s.RegisterLimiter.Allow(c.ClientIP()) {
+		c.JSON(429, gin.H{"error": "Too many registrations!"})
 		return
 	}
 	c.JSON(200, gin.H{"refreshtoken": token})
@@ -296,7 +342,7 @@ func (s *Server) HandleWebSocket(c *gin.Context) {
 	}
 	conn, err := s.Upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
+		// upgrader automatically returns an error
 		return
 	}
 
@@ -309,7 +355,7 @@ func (s *Server) HandleWebSocket(c *gin.Context) {
 	s.WSHub.register <- client
 
 	go client.ReadPump(s.WSHub)
-	go client.WritePump()
+	go client.WritePump(s.WSHub)
 }
 
 func main() {
@@ -327,8 +373,8 @@ func main() {
 	var srv Server
 	srv.DB = conn
 	srv.JWTSecret = JWTSecret
-	srv.RegisterLimiter = ratelimiter.New(10, 24*time.Hour) // set rate limit for register to 10/day
-	srv.LoginLimiter = ratelimiter.New(5, time.Hour)        // set rate limit for login 5/h
+	srv.RegisterLimiter = ratelimiter.New(3, 24*time.Hour) // set rate limit for register to 3/day
+	srv.LoginLimiter = ratelimiter.New(10, time.Hour)      // set rate limit for login 10/h
 	go srv.rateLimiterCleanup()
 	// WEB SOCKET
 	WSHub := Hub{
@@ -338,11 +384,7 @@ func main() {
 		send:       make(chan *HubMessage, 256),
 	}
 	srv.WSHub = &WSHub
-	var upgrader = websocket.Upgrader{
-		CheckOrigin: func(r *http.Request) bool {
-			return true
-		},
-	}
+	var upgrader = websocket.Upgrader{}
 	srv.Upgrader = &upgrader
 
 	go srv.WSHub.Run()
