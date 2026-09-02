@@ -3,6 +3,7 @@
 #include <string>
 
 #include <cpr/cpr.h>
+#include <ixwebsocket/IXWebSocket.h>
 
 #include <nlohmann/json.hpp>
 
@@ -90,10 +91,50 @@ class ChatClient {
     std::string refresh_token{"0"};
     std::string server_ip;
 
+  private:
+    ix::WebSocket web_socket;
+
+  public:
+
+    
     ChatClient(const std::string& server_ip) {
         this->server_ip = server_ip;
     }
 
+    ~ChatClient() {
+        // todo: add websocket disconnect
+    }
+
+    bool connectWebSocket() {
+        web_socket.setUrl("wss://" + server_ip + "/ws");
+        ix::WebSocketHttpHeaders headers;
+        headers["Authorization"] = "Bearer " + session_token;
+        web_socket.setExtraHeaders(headers);
+        web_socket.setOnMessageCallback([this](const ix::WebSocketMessagePtr& msg) {
+            if (msg->type == ix::WebSocketMessageType::Message) {
+                try {
+                    nlohmann::json j = nlohmann::json::parse(msg->str);
+                    std::cout << "\n[" << j.value("sender", "unknown") << "]: "
+                              << j.value("message", "") << std::endl;
+                } catch (const nlohmann::json::parse_error& e) {
+                    std::cerr << "failed to parse incoming ws message: " << e.what() << std::endl;
+                }
+            }
+            else if (msg->type == ix::WebSocketMessageType::Open) {
+                std::cout << "websocket connected" << std::endl;
+            }
+            else if (msg->type == ix::WebSocketMessageType::Error) {
+                std::cerr << "websocket error: " << msg->errorInfo.reason << std::endl;
+            }
+            else if (msg->type == ix::WebSocketMessageType::Close) {
+                std::cout << "websocket closed" << std::endl;
+            }
+        });
+    
+        web_socket.start();
+        return true;
+    }
+    
     bool registerUser(const std::string& username, const std::string& email, const std::string& display_name, const std::string& password) { // make username be alphanumeric and email text checking
         nlohmann::json register_json;
         register_json["email"] = email;
@@ -121,7 +162,7 @@ class ChatClient {
 
         std::ofstream refresh_token_file_stream("../data/refresh-token.txt");
         refresh_token_file_stream << refresh_token;
-
+        
         return true;
     }
     /*
@@ -151,7 +192,11 @@ class ChatClient {
 
     bool refreshSession() {
         std::ifstream refresh_token_file_stream("../data/refresh-token.txt");
-        
+        if (!refresh_token_file_stream.is_open()) {
+            std::cerr << "Failed to open refresh token file.\n";
+            return false;
+        }
+        refresh_token_file_stream >> refresh_token;
         nlohmann::json refresh_session_json;
         refresh_session_json["refreshtoken"] = refresh_token;
         auto response = cpr::Post(
@@ -164,7 +209,7 @@ class ChatClient {
             return false;
         }
 
-        if(response.error.message == "invalid-refresh-token" && response.status_code == 401) {
+        if(response.error.message == "Refresh token expired" && response.status_code == 401) {
             std::cerr << "invalid refresh token, try logging out and loggin in" << std::endl;
             return false;
         }
@@ -176,7 +221,7 @@ class ChatClient {
 
         nlohmann::json response_json = nlohmann::json::parse(response.text);
         session_token = response_json["sessiontoken"];
-
+        if(!connectWebSocket()) std::cout << "connecting websocket failed" << std::endl;
         return true;
     }
 
@@ -218,7 +263,7 @@ class ChatClient {
 
         return true;
     }
-    
+
     bool sendMessage(const std::string& recipient, const SentMessage& message) {
         const auto& u8_text = message.getText();
         std::string text_utf8(reinterpret_cast<const char*>(u8_text.data()), u8_text.size());
@@ -230,16 +275,16 @@ class ChatClient {
             {"has_text", message.hasText() ? "true" : "false"},
             {"has_image", message.hasImage() ? "true" : "false"}
         };
-    
+
         if (message.hasImage()) {
             multipart_parts.parts.push_back(cpr::Part{"image_data", cpr::File{message.getImageFilePath()}});
         }
-    
+
         auto response = cpr::Post(
             cpr::Url{server_ip + "/send-message"},
             multipart_parts
         );
-            
+
         if (response.error.code != cpr::ErrorCode::OK) {
             std::cerr << "sending message" << " failed (connection error): " << response.error.message << "\n";
             return false;
@@ -261,7 +306,7 @@ class ChatClient {
 
         return true;
     }
-   
+
     // TODO: Refactor
     bool checkIncomingMessages() { // TODO: make this return a ChatMessage
         auto response = cpr::Get(
@@ -299,13 +344,14 @@ int main() {
 
     ChatClient chat_client1(server_ip);
     // register/login -> sendMessage -> checkIncomingMessages -> refreshToken
-    chat_client1.registerUser("nemanja", "nemanja@mail.com", "Nemanja", "nemanjn_password123123🔮 🦦 🛸 🌮 🎨#");
+    // chat_client1.registerUser("nemanja", "nemanja@mail.com", "Nemanja", "nemanjn_password123123🔮 🦦 🛸 🌮 🎨#");
+    chat_client1.login("nemanja", "nemanjn_password123123🔮 🦦 🛸 🌮 🎨#");
     chat_client1.refreshSession();
     std::cout << chat_client1.session_token;
     std::string input;
     std::string message;
     std::string recipient;
-    while(true){
+    while(true)  {
         std::cout << "type 'q' to quit, 'r' to recieve polled messages and 's' to send a message" << std::endl;
         std::getline(std::cin, input);
         switch (input[0]) {
