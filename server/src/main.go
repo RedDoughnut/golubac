@@ -354,7 +354,7 @@ func (s *Server) HandleWebSocket(c *gin.Context) {
 
 	s.WSHub.register <- client
 
-	go client.ReadPump(s.WSHub)
+	go client.ReadPump(s.WSHub, s)
 	go client.WritePump(s.WSHub)
 }
 
