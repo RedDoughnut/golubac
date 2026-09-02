@@ -55,3 +55,7 @@ function getCode(){
         document.getElementById("error").innerText = "Invalid code";
     }
 }
+
+function openConversation(){
+    
+}

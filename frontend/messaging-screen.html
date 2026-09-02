@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <link rel="stylesheet" href="style.css">
-    <script src="main.js"></script>
+    <script src="index.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Golubac</title>
@@ -12,8 +12,78 @@
         <p></p>
     </div>
 
-    <iframe src="contacts.html" style="width:25%; height:85vh;"></iframe>
+    <div  style="display: flex; justify-content: center; align-items: center;">
+
+        <div class="contact-card-holder">
     
-    <iframe src="chat.html" style="width:74%; height:85vh;"></iframe>
+            <button class="contact-card" onclick="openConversation()">
+                <img src="test-images/pfp.jpg" alt="profile-picture">
+                <div class="contact-card-text">
+                    <h4>Username</h4>
+                    <p>Previous message</p>
+                </div>
+            </button>
+
+
+            
+        </div>
+
+        <div class="conversation">
+
+            <div class="contact-bar">
+                <img src="test-images/pfp.jpg" alt="Profile picture">
+
+                <h3>Username</h3>
+            </div>
+
+            <div class="message">
+                <div class="message-box-receving">
+                    <p>Message</p>
+                </div>
+
+                <div class="message-box-sending">
+                    <p>Message</p>
+                </div>
+
+                <div class="message-box-sending">
+                    <p>Message</p>
+                </div>
+
+                <div class="message-box-sending">
+                    <p>Message</p>
+                </div>
+
+                <div class="message-box-receving">
+                    <p>Message</p>
+                </div>
+
+                <div class="message-box-receving">
+                    <p>Message</p>
+                </div>
+                
+                <div class="message-box-sending">
+                    <p>Message</p>
+                </div>
+
+                <div class="message-box-sending">
+                    <p>Message</p>
+                </div>
+
+                <div class="message-box-receving">
+                    <p>Message</p>
+                </div>
+
+                <div class="message-box-receving">
+                    <p>Message</p>
+                </div>
+            </div>
+
+            <div class="text-bar">
+                <input type="text" id="message" name="message" placeholder="Type a message">
+            </div>
+
+        </div>
+    </div>
+
 </body>
 </html>

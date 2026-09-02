@@ -27,5 +27,141 @@ button {
 }
 
 #main{
-    padding:5vh;
+    padding:2.5vh;
+}
+
+.contact-card-holder{
+    width:25%;
+    height: 90vh;
+    border:3px solid black;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    overflow-y: auto;
+    border-radius: 15px;
+    border-top-right-radius: 0; 
+    border-bottom-right-radius: 0;
+}
+
+.contact-card{
+    width:96%;
+    height:10%;
+    margin:2%;
+    border-radius: 10px;
+    background-color: aqua;
+    flex-shrink: 0;
+
+    display: flex;
+    align-items: center;
+}
+
+.contact-card img{
+    width:15%;
+    aspect-ratio: 1;
+    object-fit: cover;
+    margin:2%;
+    border-radius: 5px;
+}
+
+.contact-card-text{
+    display: flex;
+    flex-direction: column;
+    gap:2%
+}
+
+.contact-card-text p{
+    font-size:x-small;
+    margin:0;
+}
+
+.contact-card-text h4{
+    margin:0;
+}
+
+.conversation{
+    width:74%;
+    height: 90vh;
+    border:3px solid black;
+    border-left: none;
+    border-top-right-radius: 15px; 
+    border-bottom-right-radius: 15px;
+    background-color: gray;
+}
+
+.contact-bar{
+    height:9%;
+    width:100%;
+    background-color:cornsilk;
+    border-top-right-radius: 12px;
+    display: flex;
+}
+
+.contact-bar img{
+    width:4%;
+    aspect-ratio: 1;
+    object-fit: cover;
+    margin:0.5%;
+    border-radius: 5px;
+}
+
+.message{
+    height:80%;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow-x: auto;
+}
+
+.text-bar{
+    height:8%;
+    width:98%;
+    background-color:dimgray;
+    border-radius: 25px;
+    display: flex;
+    align-items: center;
+    margin:1%;
+    
+}
+
+.text-bar input[type="text"]{
+    height:100%;
+    box-sizing: border-box;
+    border:none;
+    text-align: left;
+    border-radius: 0;
+    margin-left:25px;
+    background-color: inherit;
+}
+
+input:focus{
+    outline: none;
+}
+
+.message-box-receving{
+    max-width: 40%;
+    width:auto;
+    height:auto;
+    background-color: cadetblue;
+    margin:10px;
+    border-radius:10px;
+    border-top-left-radius: 0;
+    align-self: flex-start;
+    flex-shrink: 0;
+}
+
+.message-box-sending{
+    max-width: 40%;
+    width:auto;
+    height: auto;
+    background-color: darkolivegreen;
+    margin: 10px;
+    border-radius: 10px;
+    border-top-right-radius: 0;
+    align-self: flex-end;
+    flex-shrink: 0;
+}
+
+.message-box-receving p, .message-box-sending p{
+    padding:10px;
+    margin:0;
 }
