@@ -117,7 +117,7 @@ class ChatClient {
                 try {
                     nlohmann::json j = nlohmann::json::parse(msg->str);
                     std::cout << "\n[" << j.value("from", "unknown") << "]: "
-                              << j.value("text", "empty message") << std::endl;
+                              << j.value("message", "empty message") << std::endl;
                 } catch (const nlohmann::json::parse_error& e) {
                     std::cerr << "failed to parse incoming ws message: " << e.what() << std::endl;
                 }
