@@ -1,3 +1,4 @@
+#include <cstdio>
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -333,16 +334,28 @@ int main() {
     ChatClient chat_client1(server_ip);
     // register/login -> sendMessage -> checkIncomingMessages -> refreshToken
     // chat_client1.registerUser("nemanja", "nemanja@mail.com", "Nemanja", "nemanjn_password123123🔮 🦦 🛸 🌮 🎨#");
-    chat_client1.login("nemanja", "nemanjn_password123123🔮 🦦 🛸 🌮 🎨#");
+
+    std::cout << "are you nemanja? [y/N]" << std::endl;
+    char c = std::getchar();
+    if(c == 'y')
+        chat_client1.login("nemanja", "nemanjn_password123123🔮 🦦 🛸 🌮 🎨#");
+    else {
+        std::string user;
+        std::string password;
+        std::getline(std::cin, user);
+        std::getline(std::cin, password);
+        chat_client1.login(user, password);
+
+    }
     std::cout << chat_client1.refreshSession();
     chat_client1.connectWebSocket();
-
+    
     std::cout << chat_client1.session_token;
     std::string input;
     std::u8string message;
     std::string recipient;
     while(true)  {
-        std::cout << "type 'q' to quit, 'r' to recieve polled messages and 's' to send a message" << std::endl;
+        std::cout << "type 'q' to quit or 's' to send a message" << std::endl;
         std::getline(std::cin, input);
         switch (input[0]) {
             case 'q':
