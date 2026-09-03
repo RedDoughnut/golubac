@@ -47,23 +47,23 @@ type RefreshRequest struct {
 
 // Hub -> WritePump
 type OutgoingMessage struct {
-	Type string `json:"type"`
+	Type    string `json:"type"`
 	Message string `json:"message"`
-	From string `json:"from"`
+	From    string `json:"from"`
 }
 
 // Websocket -> ReadPump
 type IncomingMessage struct {
-	Type string `json:"type"`
+	Type    string `json:"type"`
 	Message string `json:"message"`
-	To   string `json:"to"`
+	To      string `json:"to"`
 }
 
 // ReadPump -> Hub
 type HubMessage struct {
 	Message string
-	To   int64
-	From int64
+	To      int64
+	From    int64
 }
 type Client struct {
 	UserID int64
@@ -110,8 +110,8 @@ func (h *Hub) Run(s Server) {
 			for client, _ := range h.clients[broadcastMessage.To] {
 				client.Send <- OutgoingMessage{
 					Message: broadcastMessage.Message,
-					Type: "message",
-					From: username,
+					Type:    "message",
+					From:    username,
 				}
 			}
 		}
@@ -165,7 +165,7 @@ func (c *Client) ReadPump(h *Hub, s *Server) {
 	})
 	for {
 
-		var message IncomingMessage = IncomingMessage{}
+		var message IncomingMessage
 		if err := c.Conn.ReadJSON(&message); err != nil {
 			return
 		}
@@ -180,8 +180,8 @@ func (c *Client) ReadPump(h *Hub, s *Server) {
 		c.Conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 		h.send <- &HubMessage{
 			Message: message.Message,
-			To:   uid,
-			From: c.UserID,
+			To:      uid,
+			From:    c.UserID,
 		}
 	}
 }
