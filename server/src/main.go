@@ -398,7 +398,7 @@ func main() {
 	var upgrader = websocket.Upgrader{}
 	srv.Upgrader = &upgrader
 
-	go srv.WSHub.Run()
+	go srv.WSHub.Run(srv)
 
 	router := gin.Default()
 	router.POST("/login", srv.Login)
