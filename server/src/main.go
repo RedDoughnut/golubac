@@ -49,6 +49,7 @@ type RefreshRequest struct {
 type OutgoingMessage struct {
 	Type string `json:"type"`
 	Text string `json:"text"`
+	From string `json:"from"`
 }
 
 // Websocket -> ReadPump
@@ -82,7 +83,7 @@ type Hub struct {
 /*
  * App -> Websocket -> ReadPump -> Hub -> WritePump -> WebSocket -> App
  */
-func (h *Hub) Run() {
+func (h *Hub) Run(s Server) {
 	for {
 		select {
 		case client := <-h.register:
@@ -101,10 +102,16 @@ func (h *Hub) Run() {
 				}
 			}
 		case broadcastMessage := <-h.send:
+			var username string
+			err := s.DB.QueryRow(context.Background(), `SELECT username FROM users WHERE id = $1`, broadcastMessage.From).Scan(&username)
+			if err != nil {
+				continue
+			}
 			for client, _ := range h.clients[broadcastMessage.To] {
 				client.Send <- OutgoingMessage{
 					Text: broadcastMessage.Text,
 					Type: "message",
+					From: username,
 				}
 			}
 		}
