@@ -158,13 +158,13 @@ func (c *Client) ReadPump(h *Hub, s *Server) {
 	})
 	for {
 
-		var message IncomingMessage
+		var message IncomingMessage = IncomingMessage{}
 		if err := c.Conn.ReadJSON(&message); err != nil {
 			return
 		}
 		var uid int64
 		err := s.DB.QueryRow(context.Background(), `SELECT id FROM users WHERE username = $1`, message.To).Scan(&uid)
-		if c != nil {
+		if c != nil && err != nil {
 			fmt.Print("Got a ws incoming message! Err: " + err.Error() + "\n" + message.Text + "\n" + message.To + "\n")
 		}
 		if err != nil {
