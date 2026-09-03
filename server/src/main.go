@@ -48,20 +48,20 @@ type RefreshRequest struct {
 // Hub -> WritePump
 type OutgoingMessage struct {
 	Type string `json:"type"`
-	Text string `json:"text"`
+	Message string `json:"message"`
 	From string `json:"from"`
 }
 
 // Websocket -> ReadPump
 type IncomingMessage struct {
 	Type string `json:"type"`
-	Text string `json:"text"`
+	Message string `json:"message"`
 	To   string `json:"to"`
 }
 
 // ReadPump -> Hub
 type HubMessage struct {
-	Text string
+	Message string
 	To   int64
 	From int64
 }
@@ -109,7 +109,7 @@ func (h *Hub) Run(s Server) {
 			}
 			for client, _ := range h.clients[broadcastMessage.To] {
 				client.Send <- OutgoingMessage{
-					Text: broadcastMessage.Text,
+					Message: broadcastMessage.Message,
 					Type: "message",
 					From: username,
 				}
@@ -172,14 +172,14 @@ func (c *Client) ReadPump(h *Hub, s *Server) {
 		var uid int64
 		err := s.DB.QueryRow(context.Background(), `SELECT id FROM users WHERE username = $1`, message.To).Scan(&uid)
 		if c != nil && err != nil {
-			fmt.Print("Got a ws incoming message! Err: " + err.Error() + "\n" + message.Text + "\n" + message.To + "\n")
+			fmt.Print("Got a ws incoming message! Err: " + err.Error() + "\n" + message.Message + "\n" + message.To + "\n")
 		}
 		if err != nil {
 			continue
 		}
 		c.Conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 		h.send <- &HubMessage{
-			Text: message.Text,
+			Message: message.Message,
 			To:   uid,
 			From: c.UserID,
 		}
