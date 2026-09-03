@@ -96,7 +96,7 @@ class ChatClient {
 
   public:
 
-    
+
     ChatClient(const std::string& server_ip) {
         this->server_ip = server_ip;
     }
@@ -108,7 +108,7 @@ class ChatClient {
     bool connectWebSocket() {
         web_socket.setUrl("wss://" + server_ip + "/ws");
         web_socket.setPingInterval(20);
-        
+
         ix::WebSocketHttpHeaders headers;
         headers["Authorization"] = "Bearer " + session_token;
         web_socket.setExtraHeaders(headers);
@@ -116,8 +116,8 @@ class ChatClient {
             if (msg->type == ix::WebSocketMessageType::Message) {
                 try {
                     nlohmann::json j = nlohmann::json::parse(msg->str);
-                    std::cout << "\n[" << j.value("sender", "unknown") << "]: "
-                              << j.value("message", "") << std::endl;
+                    std::cout << "\n[" << j.value("from", "unknown") << "]: "
+                              << j.value("text", "empty message") << std::endl;
                 } catch (const nlohmann::json::parse_error& e) {
                     std::cerr << "failed to parse incoming ws message: " << e.what() << std::endl;
                 }
@@ -129,15 +129,15 @@ class ChatClient {
                 std::cerr << "websocket error: " << msg->errorInfo.reason << std::endl;
             }
             else if (msg->type == ix::WebSocketMessageType::Close) {
-                std::cout << "websocket closed. Code: " << msg->closeInfo.code 
+                std::cout << "websocket closed. Code: " << msg->closeInfo.code
                               << ", Reason: " << msg->closeInfo.reason << std::endl;
             }
         });
-    
+
         web_socket.start();
         return true;
     }
-    
+
     bool registerUser(const std::string& username, const std::string& email, const std::string& display_name, const std::string& password) { // make username be alphanumeric and email text checking
         nlohmann::json register_json;
         register_json["email"] = email;
@@ -165,7 +165,7 @@ class ChatClient {
 
         std::ofstream refresh_token_file_stream("../data/refresh-token.txt");
         refresh_token_file_stream << refresh_token;
-        
+
         return true;
     }
     /*
@@ -233,12 +233,12 @@ class ChatClient {
      */
     bool sendTextMessage(const std::string& recipient, const std::u8string& message) { // TODO: add message class that can hold an image or other things
         std::string text_utf8(reinterpret_cast<const char*>(message.data()), message.size());
-        
+
         nlohmann::json j;
-        j["recipient"] = recipient;
+        j["to"] = recipient;
         j["message"] = text_utf8;
         ix::WebSocketSendInfo info = web_socket.send(j.dump());
-        
+
         if (!info.success) {
             std::cerr << "Failed to send WebSocket message" << std::endl;
             return false;
@@ -334,9 +334,9 @@ int main() {
     // register/login -> sendMessage -> checkIncomingMessages -> refreshToken
     // chat_client1.registerUser("nemanja", "nemanja@mail.com", "Nemanja", "nemanjn_password123123🔮 🦦 🛸 🌮 🎨#");
     chat_client1.login("nemanja", "nemanjn_password123123🔮 🦦 🛸 🌮 🎨#");
-    chat_client1.refreshSession();
+    std::cout << chat_client1.refreshSession();
     chat_client1.connectWebSocket();
-    
+
     std::cout << chat_client1.session_token;
     std::string input;
     std::u8string message;
