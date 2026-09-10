@@ -1,3 +1,14 @@
+@import url('https://fonts.googleapis.com/css2?family=Google+Sans:ital,opsz,wght@0,17..18,400..700;1,17..18,400..700&display=swap');
+
+*{
+    --shadow-grey: #161925ff;
+    --twilight-indigo: #23395bff;
+    --rich-cerulean: #406e8eff;
+    --powder-blue: #8ea8c3ff;
+    --frozen-water: #cbf7edff;
+    font-family: "Google Sans", sans-serif;
+    font-weight: 400;
+}
 input[type = "text"], input[type = "password"]{
     border: 2px solid black;
     padding: 1.85vh;
@@ -18,7 +29,7 @@ button {
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 5%;
+    padding: 1.2rem;
 }
 
 #contacts{
@@ -39,7 +50,7 @@ button {
     align-items: center;
     overflow-y: auto;
     border-radius: 15px;
-    border-top-right-radius: 0; 
+    border-top-right-radius: 0;
     border-bottom-right-radius: 0;
 }
 
@@ -83,7 +94,7 @@ button {
     height: 90vh;
     border:3px solid black;
     border-left: none;
-    border-top-right-radius: 15px; 
+    border-top-right-radius: 15px;
     border-bottom-right-radius: 15px;
     background-color: gray;
 }
@@ -120,7 +131,7 @@ button {
     display: flex;
     align-items: center;
     margin:1%;
-    
+
 }
 
 .text-bar input[type="text"]{
@@ -164,4 +175,17 @@ input:focus{
 .message-box-receving p, .message-box-sending p{
     padding:10px;
     margin:0;
+}
+
+.loginBtn {
+    padding: 0.8rem;
+    border-radius: 10px;
+    color: #fff;
+    background-color: var(--twilight-indigo);
+    font-weight: 800;
+    cursor: pointer;
+    transition: background-color 0.5s;
+}
+.loginBtn:hover {
+    background-color: var(--shadow-grey);
 }
