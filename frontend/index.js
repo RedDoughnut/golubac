@@ -1,4 +1,4 @@
-function getLogInData(){
+function login(){
     let usernameInput = document.getElementById("username");
     let passwordInput = document.getElementById("pwd");
     
