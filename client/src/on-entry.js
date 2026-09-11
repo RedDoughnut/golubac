@@ -1,11 +1,11 @@
 /*
     This code runs when you enter site
-*/ 
+*/
 
 let isLogedIn = false;
 
 if(isLogedIn){
-    window.location.href = "messaging-screen.html"
+    window.location.href = "src/messaging-screen.html"
 }else{
-    window.location.href = "login-screen.html"
+    window.location.href = "src/login.html"
 }
