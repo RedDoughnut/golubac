@@ -1,7 +1,17 @@
-client/bin/*
-client/data/*
+oldClient/client/bin/*
+oldClient/client/data/*
 
 
 server/.env
 server/.env.*
 server/bin/*
+client/src-tauri/target/
+.npm/
+.yarn/
+bun.lock
+bun.lockb
+client/src-tauri/gen/
+
+dist/
+dist-ssr/
+*.local
