@@ -1,7 +1,7 @@
 function login(){
     let usernameInput = document.getElementById("username");
     let passwordInput = document.getElementById("pwd");
-    
+
     let username = usernameInput.value;
     let password = passwordInput.value;
 
@@ -57,5 +57,5 @@ function getCode(){
 }
 
 function openConversation(){
-    
+
 }

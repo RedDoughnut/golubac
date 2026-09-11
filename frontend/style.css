@@ -107,6 +107,7 @@ body {
 }
 
 .input-field {
+    position: relative;
     display: flex;
     align-items: center;
     padding: 0.75rem 1rem;
@@ -134,6 +135,8 @@ body {
     font-size: 0.95rem;
     color: var(--text-main);
     font-weight: 500;
+    padding-right: 40px;
+
 }
 
 .input-field input::placeholder {
@@ -193,4 +196,17 @@ body {
 
 .app-footer a:hover {
     text-decoration: underline;
+}
+
+.toggle-password {
+    position: absolute;
+    right: 10px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    color: currentColor;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
