@@ -11,7 +11,7 @@ function login(){
     }
 
     if(checkLogInData()){
-        window.location.href = "messaging-screen.html"
+        window.location.href = "messages.html"
     }else{
         document.getElementById("error").innerText = "Invalid credidentials";
     }
