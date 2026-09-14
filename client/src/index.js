@@ -1,22 +1,45 @@
-function login(){
-    let usernameInput = document.getElementById("username");
-    let passwordInput = document.getElementById("pwd");
+import { invoke } from '@tauri-apps/api/core';
 
-    let username = usernameInput.value;
-    let password = passwordInput.value;
+export async function login() {
+    let username = document.getElementById("username").value;
+    let password = document.getElementById("pwd").value;
 
-    if (username === "" || password === "") {
-        document.getElementById("error").innerText = "Please enter your credidentials";
-        return;
-    }
+    try {
+      await invoke("command_login", {
+        username: username,
+        password: password,
+      });
 
-    if(checkLogInData()){
-        window.location.href = "messages.html"
-    }else{
-        document.getElementById("error").innerText = "Invalid credidentials";
+      console.log("Login successful");
+      window.location.href = "messages.html";
+    } catch (error) {
+      document.getElementById("error").innerText = "Invalid credentials";
     }
 }
+window.login = login;
 
+export async function signup() {
+    // username, email, display_name, password
+    let username = document.getElementById("username").value;
+    let password = document.getElementById("pwd").value;
+    let display_name = document.getElementById("displayname").value;
+    let email = document.getElementById("email").value;
+
+    try {
+      await invoke("command_register", {
+        username: username,
+        password: password,
+        displayName: display_name,
+        email: email,
+      });
+      
+      console.log("Register successful");
+      window.location.href = "messages.html";
+    } catch (error) {
+      document.getElementById("error").innerText = String(error);
+    }
+}
+window.signup = signup;
 function getSignUpData(){
     let fname = document.getElementById("fname").value;
     let lname = document.getElementById("lname").value;

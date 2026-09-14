@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let chat_client = ChatClient::new("127.0.0.1".to_string());
+    let chat_client = ChatClient::new("golubac.site.rs".to_string());
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
@@ -105,8 +105,6 @@ impl ChatClient {
         }
     }
 
-    
-
     pub async fn register(
         &mut self,
         username: String,
@@ -161,7 +159,6 @@ impl ChatClient {
 
         Ok(())
     }
-    
 
     async fn refresh_session(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         // TODO: implement saving the refresh token on device

@@ -405,5 +405,9 @@ func main() {
 	router.POST("/register", srv.Register)
 	router.POST("/refresh-session-token", srv.Refresh)
 	router.GET("/ws", srv.HandleWebSocket)
+	router.GET("/robots.txt", func(c *gin.Context) {
+	    c.Header("Content-Type", "text/plain; charset=utf-8")
+	    c.String(200, "User-agent: *\nDisallow: /\n")
+	})
 	router.Run("localhost:" + Port)
 }
